@@ -1,0 +1,8 @@
+*.pyc
+*checkpoint
+*ckpt
+*.meta
+*.bmp
+*test_load.py
+*test_save.py
+log*
