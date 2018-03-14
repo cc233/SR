@@ -28,6 +28,7 @@ flags.DEFINE_integer('scale',2,'hr=lr*scale')
 flags.DEFINE_integer('hidden_size',128,'hidden size')
 flags.DEFINE_integer('bottleneck_size',64,'bottleneck size')
 flags.DEFINE_boolean('with_padding',False,'model with padding or not')
+
 #input an image dir
 #output the array of the image
 def get_data(path):
@@ -56,6 +57,7 @@ def create_model(ckpt_path,optimizer,session):
     ckpt=tf.train.get_checkpoint_state(ckpt_path)
     wrong=False
     if ckpt and ckpt.model_checkpoint_path:
+        session.run(tf.global_variables_initializer())
         print('Reading model parameters from %s.' % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
@@ -152,7 +154,7 @@ def train():
         if(wrong==True):
             return
         #_,training_loss=model.step(sess,input_batch,target_batch,training=True)
-        c1c2_prediction,bmp_prediction=model.step(sess,data,data,1,training=False)
+        c1c2_prediction,bmp_prediction,_=model.step(sess,data,data,1,training=False)
 
     #bmp_prediction
     bmp_prediction=np.reshape(bmp_prediction,bmp_prediction.shape[1:4])

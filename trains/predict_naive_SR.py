@@ -110,6 +110,80 @@ def PSNR(img1, img2):
     #print(N)
     return 10.0 * math.log10( N / mse)
 
+def get_bmp_c1c2_from_gt(bmp_in,c1,c2):
+    shape=bmp_in.shape
+    c1=np.expand_dims(c1,axis=2)
+    c1=np.expand_dims(c1,axis=2)
+    c2=np.expand_dims(c2,axis=2)
+    c2=np.expand_dims(c2,axis=2)
+    #c1:[shape[0]/4,shape[1]/4,3]
+    temp=np.ones((1,1,4,4,3),dtype=np.uint8)
+    c1=c1*temp
+    c2=c2*temp
+    c1=np.transpose(c1,(0,2,1,3,4))
+    c2=np.transpose(c2,(0,2,1,3,4))
+    c1=np.reshape(c1,(shape[0],shape[1],3,1))
+    c2=np.reshape(c2,(shape[0],shape[1],3,1))
+    c3=c1*1/3+c2*2/3
+    c4=c1*2/3+c2*1/3
+    c=np.concatenate((c1,c2,c3,c4),axis=3)
+    c=c.astype(np.uint8)
+    #cal distance
+    bmp_in=np.reshape(bmp_in,(shape[0],shape[1],shape[2],1))
+    dis_c1=np.square(bmp_in-c1)
+    dis_c2=np.square(bmp_in-c2)
+    dis_c3=np.square(bmp_in-c3)
+    dis_c4=np.square(bmp_in-c4)
+
+    dis=np.concatenate((dis_c1,dis_c2,dis_c3,dis_c4),axis=3)
+    index=np.argmin(dis,axis=3)
+    index=np.reshape(index,(-1))
+    c=np.reshape(c,(-1,4))
+    temp=np.arange(index.shape[0])
+    bmp_out=c[temp,index]
+    bmp_out=np.reshape(bmp_out,shape)
+    return bmp_out
+def bmptobmp_c1c2(bmp_in):
+    shape=bmp_in.shape
+    c1c2=np.reshape(bmp_in,(shape[0]/4,4,shape[1]/4,4,3))
+    c1c2=np.transpose(c1c2,(0,2,1,3,4))
+    c1c2=np.reshape(c1c2,(shape[0]/4,shape[1]/4,16,3))
+    c2=np.max(c1c2,axis=2)
+    c1=np.min(c1c2,axis=2)
+    c1_out=c1
+    c2_out=c2
+    c1=np.expand_dims(c1,axis=2)
+    c1=np.expand_dims(c1,axis=2)
+    c2=np.expand_dims(c2,axis=2)
+    c2=np.expand_dims(c2,axis=2)
+    #c1:[shape[0]/4,shape[1]/4,3]
+    temp=np.ones((1,1,4,4,3),dtype=np.int32)
+    c1=c1*temp
+    c2=c2*temp
+    c1=np.transpose(c1,(0,2,1,3,4))
+    c2=np.transpose(c2,(0,2,1,3,4))
+    c1=np.reshape(c1,(shape[0],shape[1],3,1))
+    c2=np.reshape(c2,(shape[0],shape[1],3,1))
+    c3=c1*1/3+c2*2/3
+    c4=c1*2/3+c2*1/3
+    c=np.concatenate((c1,c2,c3,c4),axis=3)
+    c=c.astype(np.int32)
+    #cal distance
+    bmp_in=np.reshape(bmp_in,(shape[0],shape[1],shape[2],1))
+    dis_c1=np.square(bmp_in-c1)
+    dis_c2=np.square(bmp_in-c2)
+    dis_c3=np.square(bmp_in-c3)
+    dis_c4=np.square(bmp_in-c4)
+
+    dis=np.concatenate((dis_c1,dis_c2,dis_c3,dis_c4),axis=3)
+    index=np.argmin(dis,axis=3)
+    index=np.reshape(index,(-1))
+    c=np.reshape(c,(-1,4))
+    temp=np.arange(index.shape[0])
+    bmp_out=c[temp,index]
+    bmp_out=np.reshape(bmp_out,shape)
+    bmp_out=bmp_out.astype(np.uint8)
+    return bmp_out,c1_out,c2_out
 def train():
     ckpt_path=FLAGS.train_dir
     if not os.path.exists(ckpt_path):
@@ -131,7 +205,7 @@ def train():
         bmp_prediction,_=model.step(sess,data,data,1,training=False)
         print bmp_prediction.shape
     #bmp_prediction
-    bmp_prediction=np.reshape(bmp_prediction,bmp_prediction.shape[1:4])
+    bmp_prediction=np.reshape(bmp_prediction.astype(np.uint8),bmp_prediction.shape[1:4])
     #print c1c2_prediction.shape
     out_bmp = Image.fromarray(bmp_prediction)
     out_bmp.save(FLAGS.test_bmp_out_path)
@@ -159,6 +233,36 @@ def train():
     bicubic = Image.fromarray(bicubic)
     bicubic.save(FLAGS.bicubic_path)
 
+    #c1c2
+    c1c2_path='/home/chenchen/sr/bmp_c1c2_sr/data/test/gt'
+    c1_path=os.path.join(c1c2_path,'5_c1.bmp')
+    c2_path=os.path.join(c1c2_path,'5_c2.bmp')
+    bmp_c1c2_path=os.path.join(c1c2_path,'5_c1c2.bmp')
+
+    c1=Image.open(c1_path)
+    c1=np.array(c1,dtype=np.int32)
+    c2=Image.open(c2_path)
+    c2=np.array(c2,dtype=np.int32)
+    bmp_c1c2_gt=Image.open(bmp_c1c2_path)
+    bmp_c1c2_gt=np.array(bmp_c1c2_gt,dtype=np.uint8)
+    bmp_c1c2=get_bmp_c1c2_from_gt(bmp_prediction,c1,c2)
+    bmp_c1c2_2,_,_=bmptobmp_c1c2(bmp_prediction)
+    PSNR_score=PSNR(original,bmp_c1c2_gt)
+    SSIM_score,_=SSIM(original, bmp_c1c2_gt, full=True, multichannel=True)
+    print 'bmp_c1c2_gt: PSNR:'+str(PSNR_score)+' SSIM:'+str(SSIM_score)
+
+    PSNR_score=PSNR(original,bmp_c1c2)
+    SSIM_score,_=SSIM(original, bmp_c1c2, full=True, multichannel=True)
+    print 'bmp_c1c2: PSNR:'+str(PSNR_score)+' SSIM:'+str(SSIM_score)
+    bmp_c1c2 = Image.fromarray(bmp_c1c2)
+    bmp_c1c2.save('../data/test/bmp_c1c2_out5.bmp')
+
+    PSNR_score=PSNR(original,bmp_c1c2_2)
+    SNR_score=PSNR(original,bmp_c1c2_2)
+    SSIM_score,_=SSIM(original, bmp_c1c2_2, full=True, multichannel=True)
+    print 'bmp_c1c2_2: PSNR:'+str(PSNR_score)+' SSIM:'+str(SSIM_score)
+    bmp_c1c2_2 = Image.fromarray(bmp_c1c2_2)
+    bmp_c1c2_2.save('../data/test/bmp_c1c2_2_out5.bmp')
     # #another method
     # another=Image.open(FLAGS.another_data_path)
     # another=np.array(another,dtype=np.int8)
